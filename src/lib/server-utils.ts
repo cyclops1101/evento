@@ -1,14 +1,41 @@
-import { API_URL } from "./constants";
-import { EventoEvent } from "./types";
+import "server-only"
+import { capitalize } from "./utils";
+import prisma from "./db";
+import { notFound } from "next/navigation";
+import { PER_PAGE } from "./constants";
+import { unstable_cache } from "next/cache";
 
-export const getEvents = async (city: string): Promise<EventoEvent[]> => {
-  const res = await fetch(`${API_URL}?city=${city}`);
-  const events: EventoEvent[] = await res.json();
-  return events;
-};
+export const getEvents = unstable_cache(async (city: string, page = 1) => {
+  const events = await prisma.eventoEvent.findMany({
+    where: {
+      city: city === "all" ? undefined : capitalize(city),
+    },
+    orderBy: {
+      date: "asc",
+    },
+    take: PER_PAGE,
+    skip: (page - 1) * PER_PAGE,
+  });
 
-export const getEvent = async (slug: string): Promise<EventoEvent> => {
-  const res = await fetch(`${API_URL}/${slug}`);
-  const event: EventoEvent = await res.json();
+  const count = await prisma.eventoEvent.count({
+    where: {
+      city: city === "all" ? undefined : capitalize(city),
+    },
+  });
+
+  return { events, count };
+});
+
+export const getEvent = unstable_cache(async (slug: string) => {
+  const event = await prisma.eventoEvent.findUnique({
+    where: {
+      slug: slug,
+    },
+  });
+
+  if (!event) {
+    return notFound();
+  }
+
   return event;
-};
+});
